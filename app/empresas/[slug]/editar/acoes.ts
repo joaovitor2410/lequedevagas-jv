@@ -1,7 +1,7 @@
 "use server"; // PRIMEIRA linha do arquivo. Antes de qualquer import.
 
-import { revalidatePath } from "next/cache";
-import { buscarEmpresa, guardarEmpresa } from "@/lib/api";
+import { updateTag } from "next/cache";
+import { guardarEmpresa } from "@/lib/api";
 import { EsquemaDaEmpresa } from "@/lib/esquemas";
 import { porCampo, valoresDe } from "@/lib/formulario";
 import { podeEditarEmpresa } from "@/lib/permissoes";
@@ -39,22 +39,13 @@ export async function salvarEmpresa(
     return { ok: false, erros: porCampo(analise.error), valores };
   }
 
-  const atual = await buscarEmpresa(slug);
-  if (!atual) {
-    // Falha que não é de campo nenhum: vai na `mensagem`, não em `erros`.
-    return { ok: false, erros: {}, valores, mensagem: "Empresa não encontrada." };
+  const gravou = await guardarEmpresa(slug, analise.data);
+  if (!gravou.ok) {
+    return { ok: false, erros: gravou.erros, valores, mensagem: gravou.mensagem };
   }
 
-  // O slug é o de sempre; o resto, o que passou pelo esquema.
-  await guardarEmpresa({ ...atual, ...analise.data, slug });
-
-  /* DUAS rotas mostram este dado. Revalidar só a página da empresa deixaria
-     a listagem /empresas com o nome velho — o tipo de bug que ninguém vê
-     testando só a tela em que estava trabalhando. */
-  revalidatePath(`/empresas/${slug}`);
-  revalidatePath("/empresas");
-
-  /* SEM redirect: a pessoa continua editando. redirect é para quando ela
-     terminou; estado de sucesso é para quando ela continua onde está. */
-  return { ok: true, erros: {}, valores, mensagem: "Perfil atualizado." };
+  // O backend também troca o nome da empresa nas vagas dela.
+  updateTag("empresas");
+  updateTag("vagas");
+  return { ok: true, erros: {}, valores, mensagem: "Perfil salvo." };
 }

@@ -5,14 +5,16 @@ export default function Privacidade() {
       <h1>Política de privacidade</h1>
       <p>Texto de exemplo do projeto da disciplina.</p>
       <p>
-        Desde a aula 06, o que você escreve no site fica guardado num banco de
-        dados: a sua conta (nome, e-mail e a senha cifrada — nunca a senha em
-        si), as candidaturas que você envia e as vagas que você publica.
+        Este é um ambiente de estudos. Nome, e-mail, vagas e candidaturas são
+        enviados por HTTPS à API didática do curso. A API guarda o hash da
+        senha, e não a senha original. Use dados fictícios e uma senha
+        exclusiva para este exercício.
       </p>
       <p>
-        O login usa um cookie cifrado, que o JavaScript da página não consegue
-        ler. Ele guarda só quem você é; o resto é consultado no banco a cada
-        pedido. Nenhum dado é vendido nem enviado para outro lugar.
+        O login usa um cookie cifrado que o JavaScript da página não consegue
+        ler. Ele identifica a conta; as permissões são consultadas na API a
+        cada pedido. Os endpoints diretos dessa API são públicos, por isso
+        este ambiente não deve receber informações pessoais reais.
       </p>
     </>
   );

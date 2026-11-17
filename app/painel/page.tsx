@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { usuarioAtual, type Quem } from "@/lib/sessao";
-import { buscarEmpresa, listarCandidaturasDe, listarVagasDoAutor } from "@/lib/api";
+import { buscarEmpresa, contarCandidaturas, listarCandidaturasDe, listarVagasDoAutor } from "@/lib/api";
 import BotaoDeEnviar from "@/components/BotaoDeEnviar";
 import { sair } from "./acoes";
-import { arquivar } from "@/app/vagas/acoes";
+import FormularioDeArquivar from "@/components/FormularioDeArquivar";
 
 export const metadata: Metadata = { title: "Minha área · Leque de Vagas" };
 
@@ -21,7 +21,7 @@ export default async function Painel() {
   const quem = await usuarioAtual();
 
   /* O proxy já mandou para /entrar quem não tem crachá. Isto cobre o outro
-     caso: crachá válido de alguém que não existe mais no banco. */
+     caso: crachá válido de alguém que não existe mais na API. */
   if (!quem) redirect("/entrar");
 
   return (
@@ -49,6 +49,10 @@ async function PainelDaEmpresa({ quem }: { quem: Quem }) {
     quem.empresaSlug ? buscarEmpresa(quem.empresaSlug) : undefined,
     listarVagasDoAutor(quem.id),
   ]);
+
+  const contagens = new Map(await Promise.all(vagas.map(async (vaga) =>
+    [vaga.id, await contarCandidaturas(vaga.id)] as const,
+  )));
 
   return (
     <>
@@ -79,21 +83,16 @@ async function PainelDaEmpresa({ quem }: { quem: Quem }) {
                 <span className="font-semibold">{vaga.titulo}</span>
                 {/* Plural é conta, como o número do mural. */}
                 <span className="block text-sm text-suave">
-                  {vaga._count.candidaturas === 1
+                  {contagens.get(vaga.id) === 1
                     ? "1 candidatura"
-                    : `${vaga._count.candidaturas} candidaturas`}
+                    : `${contagens.get(vaga.id)} candidaturas`}
                 </span>
               </Link>
 
               {/* Frente 4 · o botão mora AQUI, e não no mural: o mural é
                   igual para todo mundo (○), e o botão é de uma pessoa só. O
                   id vai escondido — ele diz QUAL vaga, nunca SE pode. */}
-              <form action={arquivar} className="pb-3.5 pl-4 sm:pb-0 sm:pl-0">
-                <input type="hidden" name="id" value={vaga.id} />
-                <BotaoDeEnviar variante="perigo" enviando="Arquivando…">
-                  Arquivar
-                </BotaoDeEnviar>
-              </form>
+              <FormularioDeArquivar id={vaga.id} />
             </li>
           ))}
         </ul>
@@ -117,12 +116,16 @@ async function PainelDaCandidata({ quem }: { quem: Quem }) {
         <ul className="grid gap-3">
           {candidaturas.map((c) => (
             <li key={c.id} className={CARTAO}>
-              <Link href={`/vagas/${c.vaga.id}`} className={LINK_DO_CARTAO}>
-                <span className="font-semibold">{c.vaga.titulo}</span>
-                <span className="block text-sm text-suave">
-                  {c.vaga.empresa} · enviada em {c.criadaEm.toLocaleDateString("pt-BR")}
-                </span>
-              </Link>
+              {c.vaga ? (
+                <Link href={`/vagas/${c.vaga.id}`} className={LINK_DO_CARTAO}>
+                  <span className="font-semibold">{c.vaga.titulo}</span>
+                  <span className="block text-sm text-suave">
+                    {c.vaga.empresa} · enviada em {new Date(c.enviadaEm).toLocaleDateString("pt-BR", { timeZone: "America/Fortaleza" })}
+                  </span>
+                </Link>
+              ) : (
+                <p className="px-4 py-3.5 text-suave">Vaga indisponível · candidatura enviada em {new Date(c.enviadaEm).toLocaleDateString("pt-BR", { timeZone: "America/Fortaleza" })}</p>
+              )}
             </li>
           ))}
         </ul>

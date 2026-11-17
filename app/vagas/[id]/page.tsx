@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { buscarVaga, buscarVagaNoBanco, listarVagas } from "@/lib/api";
+import { buscarVaga, contarCandidaturas, listarVagas } from "@/lib/api";
 import BotaoCopiarLink from "@/components/BotaoCopiarLink";
 import DescricaoDaVaga from "@/components/DescricaoDaVaga";
 import FormularioDeCandidatura from "@/components/FormularioDeCandidatura";
@@ -35,16 +35,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PaginaDaVaga({ params }: Props) {
   const { id } = await params;
-  const [vaga, noBanco] = await Promise.all([buscarVaga(id), buscarVagaNoBanco(id)]);
+  const vaga = await buscarVaga(id);
 
-  /* O id que não existe — ou que foi arquivado. notFound() interrompe a
+  /* O id que não existe. notFound() interrompe a
      renderização e entrega o not-found.tsx desta pasta. */
   if (!vaga) notFound();
 
   /* Repare no que esta página NÃO faz: ler a sessão. Ela é igual para todo
      mundo e continua pré-gerada (●). Quem pergunta "quem é você?" é a ação
      da candidatura, a cada envio (aula 07). */
-  const candidaturas = noBanco?._count.candidaturas ?? 0;
+  const candidaturas = vaga.arquivada ? 0 : await contarCandidaturas(id);
 
   return (
     <article>
@@ -71,9 +71,9 @@ export default async function PaginaDaVaga({ params }: Props) {
       <DescricaoDaVaga texto={vaga.descricao} />
 
       <h2>Candidatar-se</h2>
-      {noBanco ? (
+      {!vaga.arquivada ? (
         <>
-          {/* Contado pelo banco (aula 06): o número, e não as linhas. */}
+          {/* A contagem vem das candidaturas registradas na API. */}
           <p className="text-sm text-suave">
             {candidaturas === 1
               ? "1 candidatura pelo site até agora."
@@ -84,12 +84,8 @@ export default async function PaginaDaVaga({ params }: Props) {
           <FormularioDeCandidatura vaga={vaga} />
         </>
       ) : (
-        /* Vaga do dados/vagas.json não está na tabela, e a candidatura é uma
-           relação com a tabela. Ver "Detalhes que costumam pegar" no README. */
-        <p className="text-suave">
-          Esta vaga foi publicada pelo time do Leque de Vagas e ainda não recebe
-          candidatura pelo site. Fale com a {vaga.empresa} pelo{" "}
-          <Link href={`/empresas/${vaga.empresaSlug}`}>perfil da empresa</Link>.
+        <p role="status" className="text-suave">
+          Esta vaga foi arquivada e não recebe mais candidaturas.
         </p>
       )}
 

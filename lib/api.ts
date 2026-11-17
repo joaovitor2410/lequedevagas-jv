@@ -1,239 +1,110 @@
-import type { Papel } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
-import type { Candidatura, Empresa, Vaga } from "@/lib/tipos";
+import { API } from "@/lib/configuracao";
+import type {
+   Empresa, Pessoa, Vaga, VagaNova, Candidatura, CandidaturaComVaga, Estado, Numeros
+} from "@/lib/tipos";
 
-/**
- * A CAMADA DE DADOS. O único arquivo do projeto que sabe de onde o dado vem
- * e para onde ele vai.
- *
- * - aula 04: o único com `fetch` e com a URL do JSON publicado;
- * - aula 05: o único que guarda — as ações chamam as funções de escrita;
- * - aula 06: o único que fala com o banco. O array em memória da aula 05
- *   virou Prisma aqui dentro, e NENHUMA página mudou de linha por isso;
- * - aula 07: as escritas ganharam dono — um argumento, nunca um campo do
- *   formulário.
- *
- * Duas fontes convivem, e a regra de cada uma está no DADOS.md: o JSON é
- * o que o time publica no repositório; o banco é o que se escreve pelo site.
- */
-
-// ─── A FONTE PUBLICADA (aula 04) ────────────────────────────────────────
-const FONTE =
-  "https://raw.githubusercontent.com/Um-Leque-de-Tecnologia/lequedevagas-web/main/dados";
-
-/* Sessenta segundos: uma vaga nova no JSON só existe depois de um push, e um
-   minuto é curto o bastante para quem publicou conferir, e longo o bastante
-   para o site não bater no GitHub a cada visita. */
-const CACHE_VAGAS = { next: { revalidate: 60, tags: ["vagas"] } };
-
-/* Uma hora para empresa: ela muda muito menos que vaga. */
-const CACHE_EMPRESAS = { next: { revalidate: 3600, tags: ["empresas"] } };
-
-async function buscarVagasPublicadas(): Promise<Vaga[]> {
-  const resposta = await fetch(`${FONTE}/vagas.json`, CACHE_VAGAS);
-
-  /* A LINHA QUE POUPA UMA HORA. Sem ela, um 404 do GitHub vira uma página de
-     erro em HTML, e o `.json()` abaixo quebra com "Unexpected token '<'". */
-  if (!resposta.ok) throw new Error(`vagas.json respondeu ${resposta.status}`);
-  return resposta.json();
-}
-
-async function buscarEmpresasPublicadas(): Promise<Empresa[]> {
-  const resposta = await fetch(`${FONTE}/empresas.json`, CACHE_EMPRESAS);
-  if (!resposta.ok) throw new Error(`empresas.json respondeu ${resposta.status}`);
-  return resposta.json();
-}
-
-/* Os campos do type, e só eles. O banco tem mais (criadaEm, arquivada,
-   autorId) — e eles ficam aqui dentro: a página não precisa saber que
-   existem, e um Date a mais viajando para o cliente é peso à toa. */
-const CAMPOS_DA_VAGA = {
-  id: true,
-  titulo: true,
-  empresa: true,
-  empresaSlug: true,
-  area: true,
-  senioridade: true,
-  local: true,
-  aceitaIniciante: true,
-  descricao: true,
-} as const;
-
-const CAMPOS_DA_EMPRESA = { slug: true, nome: true, sobre: true, site: true } as const;
-
-// ─── LEITURA ────────────────────────────────────────────────────────────
-
-/**
- * O NOME NÃO MUDA desde a aula 04. A listagem, o detalhe, o
- * generateStaticParams e as empresas chamam esta função — e nenhuma delas
- * soube quando o "por dentro" virou banco + JSON.
- */
-export async function listarVagas(): Promise<Vaga[]> {
-  const [criadas, publicadas] = await Promise.all([
-    prisma.vaga.findMany({
-      // Arquivada some pelo FILTRO DA CONSULTA, e não num .filter() depois:
-      // o banco não manda pela rede a linha que ninguém vai mostrar.
-      where: { arquivada: false },
-      orderBy: { criadaEm: "desc" }, // a mais nova aparece primeiro
-      select: CAMPOS_DA_VAGA,
-    }),
-    buscarVagasPublicadas(),
-  ]);
-
-  return [...criadas, ...publicadas];
-}
-
-/**
- * Buscar UMA vaga é buscar todas e achar. As duas chamadas são o MESMO
- * `fetch`, e o Next junta as duas num pedido só dentro do mesmo request.
- */
-export async function buscarVaga(id: string): Promise<Vaga | undefined> {
-  const vagas = await listarVagas();
-  return vagas.find((vaga) => vaga.id === id);
-}
-
-/**
- * Os números do catálogo (aula 06, frente 4). O banco CONTA e devolve um
- * número — nenhuma linha atravessa a rede para virar `.length`. As do JSON
- * já vieram inteiras (e do cache), então ali a conta é no JavaScript.
- */
-export async function contarVagas(): Promise<{ total: number; iniciantes: number }> {
-  const [doBanco, iniciantesDoBanco, publicadas] = await Promise.all([
-    prisma.vaga.count({ where: { arquivada: false } }),
-    prisma.vaga.count({ where: { arquivada: false, aceitaIniciante: true } }),
-    buscarVagasPublicadas(),
-  ]);
-
-  return {
-    total: doBanco + publicadas.length,
-    iniciantes: iniciantesDoBanco + publicadas.filter((v) => v.aceitaIniciante).length,
-  };
-}
-
-/**
- * A vaga como o BANCO a conhece: o dono, a empresa e quantas candidaturas
- * ela tem. Vaga do dados/vagas.json não está na tabela — volta null. É o
- * que a candidatura e o arquivar precisam para decidir, e o que a página
- * da vaga usa para mostrar o número.
- */
-export async function buscarVagaNoBanco(id: string) {
-  return prisma.vaga.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      autorId: true,
-      empresaSlug: true,
-      arquivada: true,
-      // `_count` pede ao banco só o NÚMERO, sem trazer as linhas.
-      _count: { select: { candidaturas: true } },
-    },
+/** Uma única porta para o backend da aula 09, tanto no localhost quanto na Vercel. */
+async function ler<T>(caminho: string, etiqueta: string): Promise<T | undefined> {
+  const resposta = await fetch(`${API}${caminho}`, {
+    next: { revalidate: 60, tags: [etiqueta] },
   });
+  if (resposta.status === 404) return undefined;
+  if (!resposta.ok) throw new Error(`GET ${caminho} respondeu ${resposta.status}`);
+  return resposta.json();
 }
 
-/**
- * Empresa editada pelo site vence a publicada pelo time (DADOS.md). A
- * listagem troca, uma a uma, as que têm versão no banco.
- */
-export async function listarEmpresas(): Promise<Empresa[]> {
-  const [publicadas, editadas] = await Promise.all([
-    buscarEmpresasPublicadas(),
-    prisma.empresa.findMany({ select: CAMPOS_DA_EMPRESA }),
-  ]);
+export type Gravou<T> =
+  | { ok: true; dado: T }
+  | { ok: false; status: number; erros: Record<string, string>; mensagem: string };
 
-  const editadaPorSlug = new Map(editadas.map((empresa) => [empresa.slug, empresa]));
-  return publicadas.map((empresa) => editadaPorSlug.get(empresa.slug) ?? empresa);
+async function gravar<T>(metodo: string, caminho: string, corpo?: unknown): Promise<Gravou<T>> {
+  const resposta = await fetch(`${API}${caminho}`, {
+    method: metodo,
+    headers: { "Content-Type": "application/json" },
+    body: corpo === undefined ? undefined : JSON.stringify(corpo),
+  });
+  if (resposta.status >= 500) throw new Error(`${metodo} ${caminho} respondeu ${resposta.status}`);
+  if (resposta.status === 204) return { ok: true, dado: null as T };
+  const lido = await resposta.json();
+  if (resposta.ok) return { ok: true, dado: lido };
+  return { ok: false, status: resposta.status, erros: lido.campos ?? {}, mensagem: lido.erro };
+}
+
+export async function listarVagas(): Promise<Vaga[]> {
+  return (await ler<Vaga[]>("/vagas", "vagas")) ?? [];
+}
+
+/** As ações usam leitura fresca para conferir autoria e situação antes de escrever. */
+export async function buscarVaga(id: string, semCache = false): Promise<Vaga | undefined> {
+    return ler<Vaga>(`/vagas/${encodeURIComponent(id)}`, "vagas");
+}
+
+export async function guardarVaga(vaga: VagaNova, autorId: string) {
+  return gravar<Vaga>("POST", "/vagas", { ...vaga, autorId });
+}
+
+export async function arquivarVaga(id: string) {
+  return gravar<Vaga>("PATCH", `/vagas/${encodeURIComponent(id)}`, { arquivada: true });
+}
+
+export async function listarVagasDoAutor(autorId: string): Promise<Vaga[]> {
+  return (await ler<Vaga[]>(`/vagas?autor=${encodeURIComponent(autorId)}`, "vagas", true)) ?? [];
+}
+
+export async function listarEmpresas(): Promise<Empresa[]> {
+  const empresas = await ler<Empresa[]>("/empresas", "empresas");
+  if (!empresas) throw new Error("GET /empresas respondeu 404. Confira a configuração da API.");
+  return empresas;
 }
 
 export async function buscarEmpresa(slug: string): Promise<Empresa | undefined> {
-  // 1. o que foi editado pelo site tem prioridade
-  const editada = await prisma.empresa.findUnique({
-    where: { slug },
-    select: CAMPOS_DA_EMPRESA,
-  });
-  if (editada) return editada;
-
-  // 2. senão, vale a publicada pelo time
-  const publicadas = await buscarEmpresasPublicadas();
-  return publicadas.find((empresa) => empresa.slug === slug);
+  return ler<Empresa>(`/empresas/${encodeURIComponent(slug)}`, "empresas");
 }
 
-/** As vagas de UMA pessoa, para o /painel, com o número de candidaturas. */
-export async function listarVagasDoAutor(autorId: string) {
-  return prisma.vaga.findMany({
-    where: { autorId, arquivada: false },
-    orderBy: { criadaEm: "desc" },
-    select: { id: true, titulo: true, _count: { select: { candidaturas: true } } },
-  });
+export async function guardarEmpresa(slug: string, empresa: Omit<Empresa, "slug">) {
+  return gravar<Empresa>("PUT", `/empresas/${encodeURIComponent(slug)}`, empresa);
 }
 
-/** As candidaturas de UMA pessoa, com o título da vaga. */
-export async function listarCandidaturasDe(pessoaId: string) {
-  return prisma.candidatura.findMany({
-    where: { pessoaId },
-    orderBy: { criadaEm: "desc" },
-    select: {
-      id: true,
-      criadaEm: true,
-      vaga: { select: { id: true, titulo: true, empresa: true } },
-    },
-  });
+/* ─── O LOGIN ─────────────────────────────────────────────────────────────
+   Quem confere a senha é a API: o site pergunta "confere?", e nunca vê o hash. */
+
+export async function conferirLogin(email: string, senha: string): Promise<Pessoa | null> {
+  const gravou = await gravar<Pessoa>("POST", "/sessoes", { email, senha });
+  return gravou.ok ? gravou.dado : null;
 }
 
-/** Só para a mensagem do cadastro: a tranca de verdade é o @unique. */
-export async function emailJaTemConta(email: string) {
-  const achada = await prisma.pessoa.findUnique({ where: { email }, select: { id: true } });
-  return achada !== null;
+/** Sem cache: o papel de alguém pode mudar, e o painel precisa saber no próximo clique. */
+export async function buscarPessoa(id: string): Promise<Pessoa | null> {
+  const resposta = await fetch(`${API}/pessoas/${encodeURIComponent(id)}`, { cache: "no-store" });
+  if (resposta.status === 404) return null;
+  if (!resposta.ok) throw new Error(`GET /pessoas/${id} respondeu ${resposta.status}`);
+  return resposta.json();
 }
 
-// ─── ESCRITA ────────────────────────────────────────────────────────────
-// Na aula 05 nenhuma era async: escreviam num array. Na aula 06 viraram
-// banco, e só aí ganharam o `async`. Na aula 07, o dono virou argumento.
-
-/** A vaga nasce com dono — e o dono é argumento, não campo do formulário. */
-export async function guardarVaga(vaga: Vaga, autorId: string) {
-  await prisma.vaga.create({ data: { ...vaga, autorId } });
+export async function guardarPessoa(pessoa: { nome: string; email: string; senha: string }) {
+  return gravar<Pessoa>("POST", "/pessoas", { ...pessoa, papel: "candidata" });
 }
 
-/** Arquivar não apaga: marca. Apagar perderia as candidaturas e o histórico. */
-export async function arquivarVaga(id: string) {
-  await prisma.vaga.update({ where: { id }, data: { arquivada: true } });
+export async function guardarCandidatura(
+  vagaId: string,
+  candidatura: { nome: string; email: string; habilidades: string[]; pessoaId: string },
+) {
+  return gravar<Candidatura>("POST", `/vagas/${encodeURIComponent(vagaId)}/candidaturas`, candidatura);
 }
 
-/** A candidatura tem dona — mais um argumento que não vem do formulário. */
-export async function guardarCandidatura(candidatura: Candidatura, pessoaId: string) {
-  await prisma.candidatura.create({
-    data: {
-      id: candidatura.id,
-      vagaId: candidatura.vagaId,
-      nome: candidatura.nome,
-      email: candidatura.email,
-      // SQLite não guarda lista: vira texto aqui, e só aqui.
-      habilidades: candidatura.habilidades.join(", "),
-      criadaEm: new Date(candidatura.enviadaEm),
-      pessoaId,
-    },
-  });
+export async function listarCandidaturasDe(pessoaId: string): Promise<CandidaturaComVaga[]> {
+  return (await ler<CandidaturaComVaga[]>(`/pessoas/${encodeURIComponent(pessoaId)}/candidaturas`, "candidaturas", true)) ?? [];
 }
 
-/**
- * upsert: cria se não existe, atualiza se existe. É a regra "o banco vence"
- * virando uma chamada só — a primeira edição copia a empresa do JSON para o
- * banco, e dali em diante é a do banco que aparece.
- */
-export async function guardarEmpresa(empresa: Empresa) {
-  await prisma.empresa.upsert({
-    where: { slug: empresa.slug },
-    update: empresa,
-    create: empresa,
-  });
+export async function contarCandidaturas(vagaId: string): Promise<number> {
+  const lista = await ler<Candidatura[]>(`/vagas/${encodeURIComponent(vagaId)}/candidaturas`, "candidaturas");
+  return lista?.length ?? 0;
 }
 
-/** O papel é argumento — quem escolhe é a ação, nunca o formulário. */
-export async function guardarPessoa(pessoa: {
-  nome: string;
-  email: string;
-  senhaHash: string;
-  papel: Papel;
-}) {
-  await prisma.pessoa.create({ data: pessoa });
+export async function buscarNumeros(): Promise<Numeros> {
+  const numeros = await ler<Numeros>("/numeros", "vagas");
+  if (!numeros) throw new Error("GET /numeros respondeu 404");
+  return numeros;
 }
+
+

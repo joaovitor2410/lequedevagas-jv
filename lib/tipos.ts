@@ -9,22 +9,27 @@
  */
 
 export type Vaga = {
-  /** Texto, não número: o que vem da URL é sempre texto. */
   id: string;
   titulo: string;
   empresa: string;
-  /** Tem que existir como `slug` de uma empresa, escrito igualzinho. */
   empresaSlug: string;
-  /** Front-end · Back-end · Dados · Mobile · QA · Design */
   area: string;
-  /** Estágio · Júnior · Pleno */
   senioridade: string;
-  /** Remoto · Híbrido · Presencial, com a cidade quando não é remoto. */
   local: string;
   aceitaIniciante: boolean;
-  /** O "ver mais" precisa ter o que esconder: as do JSON passam de 300. */
   descricao: string;
+  // (aula 09) os três que a API dá, e o formulário nunca manda
+  publicadaEm: string;
+  arquivada: boolean;
+  autorId: string | null;
 };
+
+/** (aula 09) O que o formulário manda para publicar. O resto, a API dá. */
+export type VagaNova = Pick<
+  Vaga,
+  "titulo" | "empresaSlug" | "area" | "senioridade" | "local" | "aceitaIniciante" | "descricao"
+>;
+
 
 export type Empresa = {
   /** É o que vai na URL: `/empresas/aurora-tech`. */
@@ -42,6 +47,7 @@ export type Empresa = {
 export type Candidatura = {
   id: string;
   vagaId: string;
+  pessoaId: string | null;
   nome: string;
   email: string;
   habilidades: string[];
@@ -64,3 +70,26 @@ export type Estado = {
    objeto literal criado dentro do componente muda de identidade a cada
    render sem precisar. */
 export const ESTADO_INICIAL: Estado = { ok: false, erros: {}, valores: {} };
+
+/** Os campos que o formulário envia; id, nome da empresa e data vêm da API. */
+export type VagaEntrada = Omit<Vaga, "id" | "empresa" | "publicadaEm" | "arquivada" | "autorId">;
+
+export type Pessoa = {
+  id: string;
+  nome: string;
+  email: string;
+  papel: "candidata" | "empresa";
+  empresaSlug: string | null;
+};
+
+export type CandidaturaComVaga = Candidatura & {
+  vaga: { id: string; titulo: string; empresa: string } | null;
+};
+
+export type Numeros = {
+  total: number;
+  aceitamIniciante: number;
+  arquivadas: number;
+  porArea: Record<string, number>;
+  porSenioridade: Record<string, number>;
+};

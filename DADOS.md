@@ -1,68 +1,23 @@
-# Onde o dado mora — as decisões
+# De onde vêm os dados · aula 09
 
-As decisões de dados do Leque de Vagas, registradas antes de escrever o
-esquema (desafio 06) e mantidas em dia depois. Se o código e este arquivo
-discordarem, um dos dois está errado.
+A fonte em execução é a API HTTPS do curso, equipe **lequedevagas-jv**. O endereço público fica em `lib/configuracao.ts`; `lib/api.ts` concentra todas as chamadas HTTP.
 
-## Duas fontes, uma porta
+| Dado | Endpoint | Cache |
+| --- | --- | --- |
+| Vagas e detalhes | `/vagas`, `/vagas/{id}` | 60 segundos, etiqueta `vagas` |
+| Empresas | `/empresas`, `/empresas/{slug}` | 60 segundos, etiqueta `empresas` |
+| Números | `/numeros` | 60 segundos, etiqueta `vagas` |
+| Total de candidaturas | `/vagas/{id}/candidaturas` | 60 segundos, etiqueta `candidaturas` |
+| Identidade e permissões atuais | `/pessoas/{id}` | sem cache compartilhado |
+| Vagas/candidaturas do painel | `/vagas?autor=...`, `/pessoas/{id}/candidaturas` | sem cache compartilhado |
+| Escritas e login | POST, PUT e PATCH | sem cache |
 
-| fonte | o que tem | quem escreve | quando muda |
-| --- | --- | --- | --- |
-| `dados/vagas.json` e `dados/empresas.json` | as 12 vagas e as 5 empresas publicadas pelo time | o time, por commit | num push; o site vê em até 1 min (vagas) ou 1 h (empresas) |
-| o banco (`prisma/dev.db`, SQLite) | vagas publicadas pelo site, perfis editados, candidaturas, contas | as Server Actions | na hora, e a ação revalida as rotas |
+As Server Actions conferem sessão e permissão antes de escrever. A API gera ids, nomes das empresas nas vagas e datas; também faz o hash das senhas e rejeita cadastros e candidaturas duplicados. A resposta `campos` da API vira `erros` no formulário. Falhas 5xx e de conexão chegam às telas de erro, sem mostrar mensagens técnicas ao visitante.
 
-As duas só se encontram em `lib/api.ts`. Página nenhuma sabe que existem duas.
+Depois de sucesso, publicar/arquivar expiram `vagas`; editar empresa expira `empresas` e `vagas`; candidatar expira `candidaturas`. O detalhe de uma vaga arquivada permanece acessível, mas não oferece candidatura. Leituras usadas para conferir autoria antes de arquivar ignoram o cache.
 
-## 1. Quem manda quando o type e a tabela discordam
+Os arquivos `dados/*.json` são material para importar com o script documentado no [passo a passo](docs/PASSO_A_PASSO.md). Não são buscados automaticamente pelo site. Importação substitui as vagas da equipe, portanto exige escolha explícita de quem opera o comando.
 
-**O `type` de `lib/tipos.ts` continua escrito à mão, e manda.** O `model` do
-Prisma tem os campos do type e mais os que só o banco sabe preencher.
+A pasta `prisma/` é histórica. O SQLite local e a antiga regra de sobrepor JSON com banco não participam da execução. O segredo `AUTH_SECRET` existe somente no `.env.local` e na configuração do provedor; não deve ir para o repositório.
 
-- **Campos que só o banco preenche ficam fora do type:** `criadaEm`,
-  `arquivada`, `autorId` (na Vaga) e `editadaEm` (na Empresa). O `lib/api.ts`
-  lê com `select` só os campos do type — a página não recebe um `Date` que não
-  pediu, e o JSON publicado (que não tem esses campos) continua cabendo no
-  mesmo type.
-- **Quem precisa de um campo do banco pede por uma função própria:**
-  `buscarVagaNoBanco` (dono, arquivada, número de candidaturas),
-  `listarVagasDoAutor`, `listarCandidaturasDe`.
-
-## 2. A empresa: qual fonte vence
-
-**O banco vence.** Uma empresa só ganha linha no banco quando alguém que fala
-por ela edita o perfil pelo site; a partir daí, é essa versão que aparece no
-site inteiro (`buscarEmpresa` olha o banco primeiro, `listarEmpresas` troca uma
-a uma). O `dados/empresas.json` continua sendo a lista de empresas que existem:
-não se cria empresa pelo site.
-
-O slug é a chave (`@id`) e não é editável: é o que vai na URL e o que a Vaga
-guarda em `empresaSlug`.
-
-## 3. A candidatura
-
-- É uma **relação** com a Vaga: a vaga precisa existir **na tabela**. Por isso
-  as vagas do `dados/vagas.json` não recebem candidatura pelo site — a página
-  delas diz isso, e a ação recusa com mensagem, não com tela de erro. (A aula
-  09 põe todas as vagas no mesmo lugar, e a limitação some.)
-- **Nome e e-mail vêm da conta** de quem está na sessão (aula 07), e ficam
-  copiados na linha da candidatura: se a pessoa mudar o nome depois, a empresa
-  continua vendo com que nome ela se candidatou.
-- **As habilidades** vão num texto separado por vírgula. SQLite não tem coluna
-  de lista, e só o `lib/api.ts` sabe disso.
-- **O e-mail fica gravado.** Se alguém pedir para apagar a candidatura dela, o
-  caminho é apagar a linha da `Candidatura` (e, se pedir, a da `Pessoa`) — não
-  está implementado, mas a tabela permite sem tocar em mais nada.
-
-## 4. Arquivar não apaga
-
-`arquivada` é um `Boolean` com padrão `false`. Arquivar é um `update`, não um
-`delete`: apagar perderia as candidaturas daquela vaga e não teria volta. A
-listagem esconde as arquivadas no `where` da consulta, e os números contam com
-`count()` — nenhuma linha atravessa a rede para virar `.length`.
-
-## 5. O que não vai para o Git
-
-O `prisma/dev.db` e o `.env` (com o `DATABASE_URL`) ficam fora — cada pessoa
-monta o seu banco com `npx prisma migrate dev` e `npx prisma db seed`. A pasta
-`prisma/migrations/` vai: é o histórico de como as tabelas chegaram aqui, uma
-migration por aula.
+A API compartilhada é didática e seus endpoints diretos não exigem autenticação. A autorização do site existe nas Server Actions; ela não torna o backend público adequado para dados pessoais reais.

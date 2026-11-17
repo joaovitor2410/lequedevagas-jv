@@ -19,12 +19,10 @@ dos dois está errado.
   publica, o nome e o e-mail da candidata e o papel de quem se cadastra. Um
   campo `empresaSlug`, `papel` ou `nome` enfiado pelo DevTools é ignorado:
   ele nem está no esquema do Zod.
-- **Vaga sem dono ninguém arquiva.** As do `dados/vagas.json` e as que o
-  formulário criou antes da aula 07 têm `autorId` nulo, e o `podeArquivar`
-  compara `autorId === quem.id` — dá `false` para todo mundo, sem um `if` a
-  mais.
-- **Arquivar recusado não mostra mensagem.** A tela nunca ofereceria o botão
-  para aquela vaga; quem chegou ali montou o pedido à mão.
+- **Vaga sem dono ninguém arquiva.** A API informa `autorId`; se for nulo,
+  nenhuma sessão é autora. A ação relê a vaga sem cache antes da operação.
+- **Arquivar recusado mostra mensagem.** Falhas de permissão e recusas da API
+  voltam ao formulário, sem simular sucesso nem invalidar o cache.
 - **O `proxy.ts` é atalho, não tranca.** Ele devolve para `/entrar` quem nem
   entrou, nas três páginas de uma pessoa só (`/painel`, `/vagas/nova`,
   `/empresas/[slug]/editar`). Quem decide é a ação, a cada envio.
@@ -35,7 +33,7 @@ dos dois está errado.
 
 ## As pessoas de laboratório
 
-O `prisma/seed.mjs` cria três contas, todas com a senha `leque1234`:
+A API da equipe fornece três contas de laboratório, todas com a senha `leque1234`:
 
 | pessoa | e-mail | papel | fala por |
 | --- | --- | --- | --- |
@@ -43,4 +41,4 @@ O `prisma/seed.mjs` cria três contas, todas com a senha `leque1234`:
 | Bruno Lima | `bruno@exemplo.com` | empresa | Nuvem Rosa (`nuvem-rosa`) |
 | Carla Dias | `carla@exemplo.com` | candidata | — |
 
-Senha conhecida: essas contas nunca podem ir para um banco publicado.
+Essas contas são exclusivamente didáticas. Não use dados pessoais reais ou senhas reutilizadas no backend público do curso.

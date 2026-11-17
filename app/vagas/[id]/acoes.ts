@@ -1,7 +1,7 @@
 "use server"; // PRIMEIRA linha do arquivo. Antes de qualquer import.
 
-import { revalidatePath } from "next/cache";
-import { buscarVagaNoBanco, guardarCandidatura } from "@/lib/api";
+import { updateTag } from "next/cache";
+import { guardarCandidatura } from "@/lib/api";
 import { EsquemaDaCandidatura } from "@/lib/esquemas";
 import { porCampo } from "@/lib/formulario";
 import { podeCandidatar } from "@/lib/permissoes";
@@ -38,29 +38,17 @@ export async function enviarCandidatura(
     return { ok: false, erros: porCampo(analise.error), valores };
   }
 
-  /* 2. A RELAÇÃO OBRIGA a vaga a existir NA TABELA (aula 06). Sem esta
-        checagem, o Prisma lança, e exceção dentro de ação manda a pessoa
-        para o error.tsx. Vaga que não existe é conversa, não falha. */
-  const vaga = await buscarVagaNoBanco(analise.data.vagaId);
-  if (!vaga || vaga.arquivada) {
-    return { ok: false, erros: {}, valores, mensagem: "Esta vaga não recebe mais candidaturas." };
+  // O backend confere vaga inexistente, arquivada e candidatura duplicada.
+  const gravou = await guardarCandidatura(analise.data.vagaId, {
+    nome: quem.nome,
+    email: quem.email,
+    habilidades: analise.data.habilidades,
+    pessoaId: quem.id,
+  });
+  if (!gravou.ok) {
+    return { ok: false, erros: gravou.erros, valores, mensagem: gravou.mensagem };
   }
 
-  // 3. Nome e e-mail vêm da CONTA, não de um campo: ninguém se candidata em
-  //    nome de outra pessoa. E a dona é argumento, não campo.
-  await guardarCandidatura(
-    {
-      ...analise.data,
-      nome: quem.nome,
-      email: quem.email,
-      id: crypto.randomUUID(),
-      enviadaEm: new Date().toISOString(),
-    },
-    quem.id,
-  );
-
-  // 4. AVISE O CACHE: a página da vaga mostra quantas candidaturas ela tem.
-  revalidatePath(`/vagas/${vaga.id}`);
-
+  updateTag("candidaturas");
   return { ok: true, erros: {}, valores: {}, mensagem: "Candidatura enviada!" };
 }

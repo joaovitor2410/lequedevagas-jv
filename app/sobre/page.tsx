@@ -15,13 +15,10 @@ export default function Sobre() {
         ensinado, e nada além dele.
       </p>
       <p>
-        As vagas e as empresas publicadas pelo time moram em{" "}
-        <code>dados/vagas.json</code> e <code>dados/empresas.json</code>,
-        buscados por rede desde a aula 04. O que se escreve pelo site — vagas
-        novas, perfis editados, candidaturas, contas — mora num banco de dados
-        desde a aula 06. Um único arquivo conhece as duas fontes,{" "}
-        <code>lib/api.ts</code>: nenhuma página escreve <code>fetch</code> nem
-        fala com o banco.
+        Vagas, empresas, contas e candidaturas são compartilhadas pela API do
+        curso. Assim, o site publicado e os computadores da equipe mostram os
+        mesmos dados. Você pode explorar as empresas, encontrar oportunidades
+        e acompanhar suas candidaturas na sua área.
       </p>
       <p>
         Toda escrita é uma Server Action que valida com Zod (aula 05) e
