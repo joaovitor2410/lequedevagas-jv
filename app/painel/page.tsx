@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { usuarioAtual, type Quem } from "@/lib/sessao";
-import { buscarEmpresa, contarCandidaturas, listarCandidaturasDe, listarVagasDoAutor } from "@/lib/api";
+import { buscarEmpresa, contarCandidaturas, listarArquivadasDoAutor, listarCandidaturasDe, listarVagasDoAutor } from "@/lib/api";
 import BotaoDeEnviar from "@/components/BotaoDeEnviar";
-import { sair } from "./acoes";
+import BotaoDeApagar from "@/components/BotaoDeApagar";
+import { apagarConta, desistir, sair } from "./acoes";
+import { apagar } from "@/app/vagas/[id]/editar/acoes";
 import FormularioDeArquivar from "@/components/FormularioDeArquivar";
+import type { Vaga } from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Minha área · Leque de Vagas" };
 
@@ -39,18 +42,24 @@ export default async function Painel() {
           Sair
         </BotaoDeEnviar>
       </form>
+      <h2>Apagar a conta</h2>
+      <p>A conta e suas candidaturas serão apagadas. Não tem volta. Se você publicou vagas, apague-as primeiro, inclusive as arquivadas.</p>
+      <BotaoDeApagar acao={apagarConta} pergunta="Apagar a sua conta e todas as suas candidaturas? Não tem volta." enviando="Apagando…">
+        Apagar a minha conta
+      </BotaoDeApagar>
     </section>
   );
 }
 
 /* Frente 2 · o painel de quem publica: as vagas DELA, e não o mural inteiro. */
 async function PainelDaEmpresa({ quem }: { quem: Quem }) {
-  const [empresa, vagas] = await Promise.all([
+  const [empresa, vagas, arquivadas] = await Promise.all([
     quem.empresaSlug ? buscarEmpresa(quem.empresaSlug) : undefined,
     listarVagasDoAutor(quem.id),
+    listarArquivadasDoAutor(quem.id),
   ]);
 
-  const contagens = new Map(await Promise.all(vagas.map(async (vaga) =>
+  const contagens = new Map(await Promise.all([...vagas, ...arquivadas].map(async (vaga) =>
     [vaga.id, await contarCandidaturas(vaga.id)] as const,
   )));
 
@@ -74,30 +83,33 @@ async function PainelDaEmpresa({ quem }: { quem: Quem }) {
         </p>
       ) : (
         <ul className="grid gap-3">
-          {vagas.map((vaga) => (
-            <li
-              key={vaga.id}
-              className={`${CARTAO} flex flex-wrap items-center justify-between gap-2 pr-4`}
-            >
-              <Link href={`/vagas/${vaga.id}`} className={LINK_DO_CARTAO}>
-                <span className="font-semibold">{vaga.titulo}</span>
-                {/* Plural é conta, como o número do mural. */}
-                <span className="block text-sm text-suave">
-                  {contagens.get(vaga.id) === 1
-                    ? "1 candidatura"
-                    : `${contagens.get(vaga.id)} candidaturas`}
-                </span>
-              </Link>
-
-              {/* Frente 4 · o botão mora AQUI, e não no mural: o mural é
-                  igual para todo mundo (○), e o botão é de uma pessoa só. O
-                  id vai escondido — ele diz QUAL vaga, nunca SE pode. */}
-              <FormularioDeArquivar id={vaga.id} />
-            </li>
-          ))}
+          {vagas.map((vaga) => <VagaDoPainel key={vaga.id} vaga={vaga} candidaturas={contagens.get(vaga.id) ?? 0} />)}
+        </ul>
+      )}
+      <h2>Arquivadas</h2>
+      {arquivadas.length === 0 ? <p>Nenhuma vaga arquivada.</p> : (
+        <ul className="grid gap-3">
+          {arquivadas.map((vaga) => <VagaDoPainel key={vaga.id} vaga={vaga} candidaturas={contagens.get(vaga.id) ?? 0} />)}
         </ul>
       )}
     </>
+  );
+}
+
+function VagaDoPainel({ vaga, candidaturas }: { vaga: Vaga; candidaturas: number }) {
+  const caminho = `/vagas/${encodeURIComponent(vaga.id)}`;
+  return (
+    <li className={`${CARTAO} p-4`}>
+      <Link href={caminho} className="font-semibold">{vaga.titulo}</Link>
+      <p className="text-sm text-suave">{candidaturas === 1 ? "1 candidatura" : `${candidaturas} candidaturas`}</p>
+      <div className="flex flex-wrap items-start gap-3" role="group" aria-label={`Ações de ${vaga.titulo}`}>
+        <Link href={`${caminho}/editar`} className="inline-flex px-4 py-2">Editar</Link>
+        <FormularioDeArquivar id={vaga.id} arquivada={vaga.arquivada} />
+        <BotaoDeApagar acao={apagar.bind(null, vaga.id)} pergunta={`Apagar “${vaga.titulo}”? As candidaturas dela vão junto. Não tem volta.`} enviando="Apagando…">
+          Apagar
+        </BotaoDeApagar>
+      </div>
+    </li>
   );
 }
 
@@ -126,6 +138,11 @@ async function PainelDaCandidata({ quem }: { quem: Quem }) {
               ) : (
                 <p className="px-4 py-3.5 text-suave">Vaga indisponível · candidatura enviada em {new Date(c.enviadaEm).toLocaleDateString("pt-BR", { timeZone: "America/Fortaleza" })}</p>
               )}
+              <div className="px-4 pb-4">
+                <BotaoDeApagar acao={desistir.bind(null, c.id)} pergunta={`Desistir da candidatura${c.vaga ? ` a “${c.vaga.titulo}”` : ""}?`} enviando="Desistindo…">
+                  Desistir
+                </BotaoDeApagar>
+              </div>
             </li>
           ))}
         </ul>

@@ -18,7 +18,7 @@ const HABILIDADES = ["HTML", "CSS", "JavaScript", "React", "SQL"];
  * - aula 08: o fieldset, a legend e o erro ligado ao GRUPO.
  */
 export default function FormularioDeCandidatura({ vaga }: { vaga: Vaga }) {
-  const [estado, acaoDoForm] = useActionState(enviarCandidatura, ESTADO_INICIAL);
+  const [estado, acaoDoForm, pendente] = useActionState(enviarCandidatura, ESTADO_INICIAL);
   const idDoErro = useId();
 
   // A tela de sucesso da aula 03 continua existindo. O que mudou é quem a
@@ -35,7 +35,7 @@ export default function FormularioDeCandidatura({ vaga }: { vaga: Vaga }) {
 
   return (
     // noValidate: quem valida é a ação, em português e ligada ao campo.
-    <form action={acaoDoForm} className="grid max-w-xl gap-4" noValidate>
+    <form key={JSON.stringify(estado.valores)} action={acaoDoForm} aria-busy={pendente} className="grid max-w-xl gap-4" noValidate>
       {/* Campo escondido: a ação precisa saber de QUAL vaga é. Trocá-lo só
           faz a pessoa se candidatar a outra vaga pública — coisa que ela já
           podia fazer clicando. QUEM se candidata vem da sessão, nunca daqui. */}

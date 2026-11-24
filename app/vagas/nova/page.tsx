@@ -3,7 +3,8 @@ import Link from "next/link";
 import { buscarEmpresa } from "@/lib/api";
 import { podePublicar } from "@/lib/permissoes";
 import { usuarioAtual } from "@/lib/sessao";
-import FormularioDeVaga from "./formulario";
+import FormularioDeVaga from "@/components/FormularioDeVaga";
+import { criarVaga } from "./acoes";
 
 export const metadata: Metadata = { title: "Publicar vaga · Leque de Vagas" };
 
@@ -38,7 +39,7 @@ export default async function PublicarVaga() {
       <p className="text-suave">
         Publicando pela <strong className="text-principal">{empresa?.nome ?? quem.empresaSlug}</strong>.
       </p>
-      <FormularioDeVaga />
+      <FormularioDeVaga acao={criarVaga} botao="Publicar vaga" enviando="Publicando…" />
     </section>
   );
 }

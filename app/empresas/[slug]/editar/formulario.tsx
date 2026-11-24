@@ -12,11 +12,11 @@ export default function FormularioDaEmpresa({ empresa }: { empresa: Empresa }) {
   // .bind prende o slug como PRIMEIRO argumento da ação. Ele viaja junto,
   // mas não como campo do formulário — não dá para trocá-lo pelo HTML.
   const acaoComSlug = salvarEmpresa.bind(null, empresa.slug);
-  const [estado, acaoDoForm] = useActionState(acaoComSlug, ESTADO_INICIAL);
+  const [estado, acaoDoForm, pendente] = useActionState(acaoComSlug, ESTADO_INICIAL);
   const { valores, erros } = estado;
 
   return (
-    <form action={acaoDoForm} className="grid max-w-xl gap-4" noValidate>
+    <form key={JSON.stringify(valores)} action={acaoDoForm} aria-busy={pendente} className="grid max-w-xl gap-4" noValidate>
       {/* O ?? garante que o primeiro carregamento mostre o valor atual, e
           uma recusa devolva o que a pessoa tinha acabado de digitar. O slug
           não aparece: ele não é editável. */}

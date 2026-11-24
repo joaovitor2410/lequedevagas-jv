@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 // A metadata da página sobrescreve a do layout.
 export const metadata: Metadata = {
   title: "Sobre · Leque de Vagas",
+  description: "Projeto de João Victor Azevedo e Abraao Nerys para a disciplina Introdução ao Next.js, NickDev, 2026.2.",
 };
 
 export default function Sobre() {
@@ -10,9 +11,9 @@ export default function Sobre() {
     <section>
       <h1>Sobre o projeto</h1>
       <p>
-        Este é o projeto de referência do curso Introdução ao Next.js. Ele
-        cresce junto com as aulas: a cada semana entra o recurso que foi
-        ensinado, e nada além dele.
+        O Leque de Vagas é o projeto de João Victor Azevedo e Abraao Nerys
+        para a disciplina Introdução ao Next.js, do NickDev, no semestre 2026.2.
+        Nosso objetivo é facilitar a busca por oportunidades de entrada em tecnologia.
       </p>
       <p>
         Vagas, empresas, contas e candidaturas são compartilhadas pela API do
@@ -21,10 +22,9 @@ export default function Sobre() {
         e acompanhar suas candidaturas na sua área.
       </p>
       <p>
-        Toda escrita é uma Server Action que valida com Zod (aula 05) e
-        pergunta quem está chamando antes de fazer qualquer coisa (aula 07). E
-        o estilo mora junto de cada componente, com cores de nome de função que
-        valem nos temas claro e escuro (aula 08).
+        João Victor cuida das vagas e das empresas; Abraao cuida das contas,
+        candidaturas, busca e números. Empresas podem publicar e administrar suas
+        vagas. Candidatas podem encontrar oportunidades, se candidatar e desistir pelo painel.
       </p>
     </section>
   );

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import {
-  arquivarVaga, buscarEmpresa, buscarPessoa, buscarVaga, conferirLogin,
+  apagarCandidatura, apagarPessoa, apagarVaga, arquivarVaga, buscarCandidatura, buscarEmpresa, buscarPessoa, buscarVaga, conferirLogin,
   contarCandidaturas, guardarCandidatura, guardarEmpresa, guardarPessoa,
-  guardarVaga, listarCandidaturasDe, listarVagas, listarVagasDoAutor, buscarNumeros,
+  guardarVaga, listarArquivadasDoAutor, listarCandidaturasDe, listarVagas, listarVagasDoAutor, buscarNumeros, trocarVaga, desarquivarVaga,
 } from "../lib/api";
 import { API } from "../lib/configuracao";
 
@@ -66,9 +66,58 @@ test("login inválido é null; pessoa e painéis não usam cache compartilhado",
   responder(200, [], (_url, opcoes) => assert.equal(opcoes.cache, "no-store"));
   await buscarPessoa("ana");
   await listarVagasDoAutor("ana");
+  await listarArquivadasDoAutor("ana");
   await listarCandidaturasDe("carla");
+  await buscarCandidatura("c1");
   responder(404, {});
   assert.equal(await buscarPessoa("removida"), null);
+});
+
+test("editar manda PUT completo e desarquivar manda só arquivada false", async () => {
+  const vaga = { titulo: "Vaga editada", empresaSlug: "aurora-tech", area: "QA", senioridade: "Júnior", local: "Remoto", aceitaIniciante: false, descricao: "Descrição da vaga" };
+  responder(200, { ...vaga, id: "a/b" }, (url, opcoes) => {
+    assert.equal(url, `${API}/vagas/a%2Fb`);
+    assert.equal(opcoes.method, "PUT");
+    assert.deepEqual(JSON.parse(String(opcoes.body)), vaga);
+  });
+  assert.equal((await trocarVaga("a/b", vaga)).ok, true);
+  responder(200, {}, (_url, opcoes) => {
+    assert.equal(opcoes.method, "PATCH");
+    assert.deepEqual(JSON.parse(String(opcoes.body)), { arquivada: false });
+  });
+  await desarquivarVaga("1");
+});
+
+test("exclusões aceitam 204 sem tentar interpretar JSON e codificam os ids", async () => {
+  for (const [apagar, caminho] of [[apagarVaga, "vagas"], [apagarPessoa, "pessoas"], [apagarCandidatura, "candidaturas"]] as const) {
+    responder(204, null, (url, opcoes) => {
+      assert.equal(url, `${API}/${caminho}/a%2Fb`);
+      assert.equal(opcoes.method, "DELETE");
+      assert.equal(opcoes.body, undefined);
+      assert.equal(opcoes.cache, "no-store");
+    });
+    assert.deepEqual(await apagar("a/b"), { ok: true, dado: null });
+  }
+});
+
+test("listar arquivadas usa o filtro explícito e não usa cache compartilhado", async () => {
+  responder(200, [], (url, opcoes) => {
+    assert.equal(url, `${API}/vagas?autor=a%2Fb&arquivada=true`);
+    assert.equal(opcoes.cache, "no-store");
+    assert.equal(opcoes.next, undefined);
+  });
+  assert.deepEqual(await listarArquivadasDoAutor("a/b"), []);
+});
+
+test("falha de conexão e 503 em exclusão sobem; conflito 409 permanece uma recusa", async () => {
+  responder(503, {});
+  await assert.rejects(() => apagarVaga("1"), /503/);
+  responder(409, { erro: "Apague as vagas antes de apagar a conta." });
+  const resultado = await apagarPessoa("ana");
+  assert.equal(resultado.ok, false);
+  if (!resultado.ok) assert.equal(resultado.status, 409);
+  globalThis.fetch = async () => { throw new TypeError("fetch failed"); };
+  await assert.rejects(() => apagarCandidatura("1"), /fetch failed/);
 });
 
 test("cadastro fixa papel de candidata, sem devolver senha ou hash no resultado de erro", async () => {

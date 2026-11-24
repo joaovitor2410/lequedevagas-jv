@@ -20,7 +20,7 @@ export async function entrar(estadoAnterior: Estado, dados: FormData): Promise<E
   } catch (erro) {
     // E-mail que não existe e senha errada caem AQUI, com a MESMA frase:
     // "esse e-mail não existe" contaria a quem tenta adivinhar quem tem conta.
-    if (erro instanceof AuthError) {
+    if (erro instanceof AuthError && erro.type === "CredentialsSignin") {
       return { ok: false, erros: {}, valores, mensagem: "E-mail ou senha não conferem." };
     }
     // Deu certo? Então o signIn LANÇOU o redirect para /painel — é assim que

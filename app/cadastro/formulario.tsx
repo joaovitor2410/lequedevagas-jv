@@ -7,11 +7,11 @@ import Campo from "@/components/ui/Campo";
 import { ESTADO_INICIAL } from "@/lib/tipos";
 
 export default function FormularioDeCadastro() {
-  const [estado, acaoDoForm] = useActionState(cadastrar, ESTADO_INICIAL);
+  const [estado, acaoDoForm, pendente] = useActionState(cadastrar, ESTADO_INICIAL);
   const { valores, erros } = estado;
 
   return (
-    <form action={acaoDoForm} className="grid max-w-sm gap-4" noValidate>
+    <form key={JSON.stringify(valores)} action={acaoDoForm} aria-busy={pendente} className="grid max-w-sm gap-4" noValidate>
       {/* O autoComplete diz ao navegador O QUE é cada campo: o celular sugere
           o e-mail, e o gerenciador de senha oferece uma senha forte no
           new-password — e não a senha antiga, como no current-password. */}

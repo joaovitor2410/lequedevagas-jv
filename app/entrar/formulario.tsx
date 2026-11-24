@@ -7,11 +7,11 @@ import Campo from "@/components/ui/Campo";
 import { ESTADO_INICIAL } from "@/lib/tipos";
 
 export default function FormularioDeEntrada() {
-  const [estado, acaoDoForm] = useActionState(entrar, ESTADO_INICIAL);
+  const [estado, acaoDoForm, pendente] = useActionState(entrar, ESTADO_INICIAL);
   const { valores, erros } = estado;
 
   return (
-    <form action={acaoDoForm} className="grid max-w-sm gap-4" noValidate>
+    <form key={JSON.stringify(valores)} action={acaoDoForm} aria-busy={pendente} className="grid max-w-sm gap-4" noValidate>
       {/* O Campo liga rótulo, entrada e erro (aula 08): o leitor de tela diz
           "inválido" e lê a frase do erro logo depois do nome do campo. */}
       <Campo

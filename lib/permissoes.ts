@@ -17,7 +17,7 @@ import type { Quem } from "@/lib/sessao";
 export function podePublicar(quem: Quem | null): quem is Quem & { empresaSlug: string } {
   // O `quem is …` é um predicado de tipo: depois de um `if (!podePublicar(quem))
   // return`, o TypeScript sabe que quem.empresaSlug é texto.
-  return quem?.papel === "empresa" && typeof quem.empresaSlug === "string";
+  return quem?.papel === "empresa" && typeof quem.empresaSlug === "string" && quem.empresaSlug.length > 0;
 }
 
 /** Editar o perfil de uma empresa: só quem fala por ELA. (frente 2) */
@@ -30,9 +30,19 @@ export function podeCandidatar(quem: Quem | null): quem is Quem {
   return quem?.papel === "candidata";
 }
 
+/** Editar e apagar compartilham a regra de autoria do arquivamento. */
+export function podeEditarVaga(quem: Quem | null, vaga: { autorId: string | null }): boolean {
+  return podeArquivar(quem, vaga);
+}
+
+/** Só a candidata dona da candidatura pode desistir. */
+export function podeDesistir(quem: Quem | null, candidatura: { pessoaId: string | null }): boolean {
+  return quem?.papel === "candidata" && candidatura.pessoaId === quem.id;
+}
+
 /** Arquivar: só quem publicou. Vaga sem dono ninguém arquiva. (frente 4) */
 export function podeArquivar(quem: Quem | null, vaga: { autorId: string | null }): boolean {
   // Com autorId nulo, a comparação dá false para todo mundo — é assim que
   // "vaga sem dono ninguém arquiva" acontece sem um if a mais.
-  return quem !== null && vaga.autorId === quem.id;
+  return quem?.papel === "empresa" && vaga.autorId === quem.id;
 }

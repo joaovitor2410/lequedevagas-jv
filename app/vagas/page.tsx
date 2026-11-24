@@ -1,9 +1,15 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import { listarVagas } from "@/lib/api";
 import MuralDeVagas from "@/components/MuralDeVagas";
 import NumerosDoCatalogo from "@/components/NumerosDoCatalogo";
 import NumerosEsqueleto from "@/components/NumerosEsqueleto";
 import ListaEsqueleto from "@/components/ListaEsqueleto";
+
+export const metadata: Metadata = {
+  title: "Vagas · Leque de Vagas",
+  description: "Encontre vagas de tecnologia por área, senioridade e aceitação de iniciantes. Compartilhe seus filtros pelo link.",
+};
 
 /**
  * Repare no que ESTA página não é: `async`.
@@ -34,8 +40,8 @@ export default function Vagas() {
  * O componente que embrulha o mural da aula 03: ele busca, o mural filtra.
  *
  * O MuralDeVagas continua sendo de CLIENTE e continua com os filtros no
- * `useState` — a aula 03 fica inteira de pé. O que mudou é só de onde vem a
- * lista que ele recebe por prop.
+ * endereço — a lista filtrada e a contagem continuam derivadas. A API só é
+ * consultada no servidor; o componente recebe a lista por prop.
  */
 async function ListagemDeVagas() {
   const vagas = await listarVagas();

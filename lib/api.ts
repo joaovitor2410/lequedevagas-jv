@@ -1,12 +1,13 @@
 import { API } from "@/lib/configuracao";
 import type {
-   Empresa, Pessoa, Vaga, VagaNova, Candidatura, CandidaturaComVaga, Estado, Numeros
+   Empresa, Pessoa, Vaga, VagaNova, Candidatura, CandidaturaComVaga, Numeros
 } from "@/lib/tipos";
 
 /** Uma única porta para o backend da aula 09, tanto no localhost quanto na Vercel. */
-async function ler<T>(caminho: string, etiqueta: string): Promise<T | undefined> {
+async function ler<T>(caminho: string, etiqueta: string, semCache = false): Promise<T | undefined> {
   const resposta = await fetch(`${API}${caminho}`, {
-    next: { revalidate: 60, tags: [etiqueta] },
+    ...(semCache ? { cache: "no-store" as const } : { next: { revalidate: 60, tags: [etiqueta] } }),
+    signal: AbortSignal.timeout(15_000),
   });
   if (resposta.status === 404) return undefined;
   if (!resposta.ok) throw new Error(`GET ${caminho} respondeu ${resposta.status}`);
@@ -20,6 +21,8 @@ export type Gravou<T> =
 async function gravar<T>(metodo: string, caminho: string, corpo?: unknown): Promise<Gravou<T>> {
   const resposta = await fetch(`${API}${caminho}`, {
     method: metodo,
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
     headers: { "Content-Type": "application/json" },
     body: corpo === undefined ? undefined : JSON.stringify(corpo),
   });
@@ -31,24 +34,44 @@ async function gravar<T>(metodo: string, caminho: string, corpo?: unknown): Prom
 }
 
 export async function listarVagas(): Promise<Vaga[]> {
-  return (await ler<Vaga[]>("/vagas", "vagas")) ?? [];
+  const vagas = await ler<Vaga[]>("/vagas", "vagas");
+  if (!vagas) throw new Error("GET /vagas respondeu 404. Confira a configuração da API.");
+  return vagas;
 }
 
 /** As ações usam leitura fresca para conferir autoria e situação antes de escrever. */
 export async function buscarVaga(id: string, semCache = false): Promise<Vaga | undefined> {
-    return ler<Vaga>(`/vagas/${encodeURIComponent(id)}`, "vagas");
+  return ler<Vaga>(`/vagas/${encodeURIComponent(id)}`, "vagas", semCache);
 }
 
 export async function guardarVaga(vaga: VagaNova, autorId: string) {
   return gravar<Vaga>("POST", "/vagas", { ...vaga, autorId });
 }
 
+/** Editar preserva id, autoria, empresa, data e situação da vaga. */
+export async function trocarVaga(id: string, vaga: VagaNova) {
+  return gravar<Vaga>("PUT", `/vagas/${encodeURIComponent(id)}`, vaga);
+}
+
+/** O DELETE responde 204 e também remove as candidaturas da vaga. */
+export async function apagarVaga(id: string) {
+  return gravar<null>("DELETE", `/vagas/${encodeURIComponent(id)}`);
+}
+
 export async function arquivarVaga(id: string) {
   return gravar<Vaga>("PATCH", `/vagas/${encodeURIComponent(id)}`, { arquivada: true });
 }
 
+export async function desarquivarVaga(id: string) {
+  return gravar<Vaga>("PATCH", `/vagas/${encodeURIComponent(id)}`, { arquivada: false });
+}
+
 export async function listarVagasDoAutor(autorId: string): Promise<Vaga[]> {
   return (await ler<Vaga[]>(`/vagas?autor=${encodeURIComponent(autorId)}`, "vagas", true)) ?? [];
+}
+
+export async function listarArquivadasDoAutor(autorId: string): Promise<Vaga[]> {
+  return (await ler<Vaga[]>(`/vagas?autor=${encodeURIComponent(autorId)}&arquivada=true`, "vagas", true)) ?? [];
 }
 
 export async function listarEmpresas(): Promise<Empresa[]> {
@@ -70,15 +93,18 @@ export async function guardarEmpresa(slug: string, empresa: Omit<Empresa, "slug"
 
 export async function conferirLogin(email: string, senha: string): Promise<Pessoa | null> {
   const gravou = await gravar<Pessoa>("POST", "/sessoes", { email, senha });
-  return gravou.ok ? gravou.dado : null;
+  if (gravou.ok) return gravou.dado;
+  if (gravou.status === 401) return null;
+  throw new Error(`POST /sessoes respondeu ${gravou.status}`);
 }
 
 /** Sem cache: o papel de alguém pode mudar, e o painel precisa saber no próximo clique. */
 export async function buscarPessoa(id: string): Promise<Pessoa | null> {
-  const resposta = await fetch(`${API}/pessoas/${encodeURIComponent(id)}`, { cache: "no-store" });
-  if (resposta.status === 404) return null;
-  if (!resposta.ok) throw new Error(`GET /pessoas/${id} respondeu ${resposta.status}`);
-  return resposta.json();
+  return (await ler<Pessoa>(`/pessoas/${encodeURIComponent(id)}`, "pessoas", true)) ?? null;
+}
+
+export async function apagarPessoa(id: string) {
+  return gravar<null>("DELETE", `/pessoas/${encodeURIComponent(id)}`);
 }
 
 export async function guardarPessoa(pessoa: { nome: string; email: string; senha: string }) {
@@ -94,6 +120,15 @@ export async function guardarCandidatura(
 
 export async function listarCandidaturasDe(pessoaId: string): Promise<CandidaturaComVaga[]> {
   return (await ler<CandidaturaComVaga[]>(`/pessoas/${encodeURIComponent(pessoaId)}/candidaturas`, "candidaturas", true)) ?? [];
+}
+
+/** A desistência confere a dona com uma leitura fresca, nunca com cache compartilhado. */
+export async function buscarCandidatura(id: string): Promise<Candidatura | undefined> {
+  return ler<Candidatura>(`/candidaturas/${encodeURIComponent(id)}`, "candidaturas", true);
+}
+
+export async function apagarCandidatura(id: string) {
+  return gravar<null>("DELETE", `/candidaturas/${encodeURIComponent(id)}`);
 }
 
 export async function contarCandidaturas(vagaId: string): Promise<number> {

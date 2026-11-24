@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Filtros from "./Filtros";
 import CardDeVaga from "./CardDeVaga";
 import type { Vaga } from "@/lib/tipos";
+import { filtrarVagas, lerFiltros, type FiltrosDeVagas } from "@/lib/filtros";
 
 /**
  * O mural é igual para todo mundo, e por isso a página dele é pré-gerada.
@@ -11,22 +12,30 @@ import type { Vaga } from "@/lib/tipos";
  * lib/api.ts (aula 06) — componente só mostra.
  */
 export default function MuralDeVagas({ vagas }: { vagas: Vaga[] }) {
-  // O estado mora AQUI, no pai comum dos filtros e da lista.
-  const [busca, setBusca] = useState("");
-  const [area, setArea] = useState("Todas");
+  // A URL é a fonte de verdade: recarregar, compartilhar e voltar preservam os filtros.
+  const parametros = useSearchParams();
+  const filtros = lerFiltros(parametros);
+  const areas = [...new Set(vagas.map((v) => v.area))].sort();
+  const senioridades = [...new Set(vagas.map((v) => v.senioridade))].sort();
+  const visiveis = filtrarVagas(vagas, filtros);
 
-  // Estado derivado: recalculado a cada renderização, nunca guardado.
-  const areas = ["Todas", ...new Set(vagas.map((v) => v.area))];
+  function mudarFiltro(campo: keyof FiltrosDeVagas, valor: string) {
+    const proximos = new URLSearchParams(window.location.search);
+    if (valor) proximos.set(campo, valor);
+    else proximos.delete(campo);
+    const consulta = proximos.toString();
+    const endereco = `${window.location.pathname}${consulta ? `?${consulta}` : ""}`;
+    // Digitar não cria uma entrada por letra. Escolhas discretas admitem Voltar.
+    if (campo === "busca") window.history.replaceState(null, "", endereco);
+    else window.history.pushState(null, "", endereco);
+  }
 
-  const visiveis = vagas.filter((vaga) => {
-    const termo = busca.toLowerCase();
-    // tudo minúsculo dos dois lados: quem busca "React" acha "react"
-    const bateBusca =
-      vaga.titulo.toLowerCase().includes(termo) ||
-      vaga.empresa.toLowerCase().includes(termo);
-    const bateArea = area === "Todas" || vaga.area === area;
-    return bateBusca && bateArea;
-  });
+  function limparFiltros() {
+    const proximos = new URLSearchParams(window.location.search);
+    for (const campo of ["busca", "area", "senioridade", "iniciante"]) proximos.delete(campo);
+    const consulta = proximos.toString();
+    window.history.pushState(null, "", `${window.location.pathname}${consulta ? `?${consulta}` : ""}`);
+  }
 
   const aceitamIniciante = visiveis.filter((v) => v.aceitaIniciante).length;
 
@@ -34,11 +43,11 @@ export default function MuralDeVagas({ vagas }: { vagas: Vaga[] }) {
     <section>
       {/* O dado desce por prop (busca, area) e o aviso sobe por função. */}
       <Filtros
-        busca={busca}
-        aoMudarBusca={setBusca}
-        area={area}
-        aoMudarArea={setArea}
+        filtros={filtros}
+        aoMudar={mudarFiltro}
+        aoLimpar={limparFiltros}
         areas={areas}
+        senioridades={senioridades}
       />
 
       {/* aria-live="polite": quando um chip ou a busca muda a conta, o leitor
@@ -49,7 +58,7 @@ export default function MuralDeVagas({ vagas }: { vagas: Vaga[] }) {
       </p>
 
       {visiveis.length === 0 ? (
-        <p>Nenhuma vaga com esse filtro. Tente outra palavra.</p>
+        <p>Nenhuma vaga com esses filtros. Tente outra palavra ou limpe os filtros.</p>
       ) : (
         // Uma coluna em qualquer tela; duas a partir de 640px (sm:).
         <ul className="grid gap-3 sm:grid-cols-2">

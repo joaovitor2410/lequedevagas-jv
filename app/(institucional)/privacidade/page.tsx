@@ -1,4 +1,8 @@
 // app/(institucional)/privacidade/page.tsx  →  /privacidade
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Privacidade · Leque de Vagas" };
+
 export default function Privacidade() {
   return (
     <>
@@ -15,6 +19,11 @@ export default function Privacidade() {
         ler. Ele identifica a conta; as permissões são consultadas na API a
         cada pedido. Os endpoints diretos dessa API são públicos, por isso
         este ambiente não deve receber informações pessoais reais.
+      </p>
+      <p>
+        Você pode desistir de uma candidatura ou apagar a própria conta na sua área.
+        Apagar a conta também apaga as suas candidaturas. Quem publicou vagas precisa
+        apagá-las antes de excluir a conta.
       </p>
     </>
   );

@@ -20,5 +20,5 @@ export default auth((pedido) => {
 // Só as páginas que já são de uma pessoa. Mural, vaga e empresa ficam de
 // fora — e continuam pré-geradas.
 export const config = {
-  matcher: ["/vagas/nova", "/painel", "/empresas/:slug/editar"],
+  matcher: ["/vagas/nova", "/vagas/:id/editar", "/painel", "/empresas/:slug/editar"],
 };

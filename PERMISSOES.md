@@ -1,44 +1,32 @@
 # Quem pode o quê
 
-A tabela do desafio 07. Cada linha é uma função em `lib/permissoes.ts`, chamada
-**pela tela** (para decidir o que desenhar — conveniência) e **pela ação**
-(para decidir se faz — a tranca). Se esta tabela e o arquivo discordarem, um
-dos dois está errado.
+As regras puras em `lib/permissoes.ts` são usadas pelas telas e conferidas novamente dentro das ações. As leituras de identidade e autoria usadas para decidir ignoram cache compartilhado.
 
-| verbo | quem pode | depende de | função | onde a ação pergunta |
-| --- | --- | --- | --- | --- |
-| publicar vaga | quem fala por uma empresa | papel | `podePublicar(quem)` | `app/vagas/nova/acoes.ts` |
-| editar o perfil da empresa | quem fala por **aquela** empresa | papel + qual | `podeEditarEmpresa(quem, slug)` | `app/empresas/[slug]/editar/acoes.ts` |
-| candidatar-se | quem é candidata | papel | `podeCandidatar(quem)` | `app/vagas/[id]/acoes.ts` |
-| arquivar vaga | quem publicou **aquela** vaga | dono | `podeArquivar(quem, vaga)` | `app/vagas/acoes.ts` |
-| criar conta | qualquer pessoa — sempre como candidata | — | (o papel é fixo na ação) | `app/cadastro/acoes.ts` |
-
-## As regras que saem da tabela
-
-- **Quem é vem da sessão, nunca do formulário.** O dono da vaga, a empresa que
-  publica, o nome e o e-mail da candidata e o papel de quem se cadastra. Um
-  campo `empresaSlug`, `papel` ou `nome` enfiado pelo DevTools é ignorado:
-  ele nem está no esquema do Zod.
-- **Vaga sem dono ninguém arquiva.** A API informa `autorId`; se for nulo,
-  nenhuma sessão é autora. A ação relê a vaga sem cache antes da operação.
-- **Arquivar recusado mostra mensagem.** Falhas de permissão e recusas da API
-  voltam ao formulário, sem simular sucesso nem invalidar o cache.
-- **O `proxy.ts` é atalho, não tranca.** Ele devolve para `/entrar` quem nem
-  entrou, nas três páginas de uma pessoa só (`/painel`, `/vagas/nova`,
-  `/empresas/[slug]/editar`). Quem decide é a ação, a cada envio.
-- **Ler a sessão só onde a página já é de uma pessoa.** Mural, vaga e empresa
-  são iguais para todo mundo e continuam pré-gerados (○ e ●). Por isso o botão
-  Arquivar e o link "editar perfil" moram no `/painel`, e a candidatura
-  descobre quem é dentro da ação.
-
-## As pessoas de laboratório
-
-A API da equipe fornece três contas de laboratório, todas com a senha `leque1234`:
-
-| pessoa | e-mail | papel | fala por |
+| Operação | Quem pode | Regra | Ação |
 | --- | --- | --- | --- |
-| Ana Souza | `ana@exemplo.com` | empresa | Aurora Tech (`aurora-tech`) |
-| Bruno Lima | `bruno@exemplo.com` | empresa | Nuvem Rosa (`nuvem-rosa`) |
-| Carla Dias | `carla@exemplo.com` | candidata | — |
+| Publicar vaga | Conta de empresa vinculada a uma empresa | `podePublicar` | `app/vagas/nova/acoes.ts` |
+| Editar perfil | Conta vinculada àquela empresa | `podeEditarEmpresa` | `app/empresas/[slug]/editar/acoes.ts` |
+| Candidatar-se | Conta candidata | `podeCandidatar` | `app/vagas/[id]/acoes.ts` |
+| Arquivar e desarquivar | Conta de empresa que publicou a vaga | `podeArquivar` | `app/vagas/acoes.ts` |
+| Editar e apagar vaga | Mesma autora do arquivamento | `podeEditarVaga`, delega a `podeArquivar` | `app/vagas/[id]/editar/acoes.ts` |
+| Desistir | Candidata dona da candidatura | `podeDesistir` | `app/painel/acoes.ts` |
+| Apagar a própria conta | Pessoa logada; API recusa quem tem vagas | Id exclusivamente da sessão | `app/painel/acoes.ts` |
+| Criar conta | Cadastro público, sempre candidata | Papel fixado pela ação | `app/cadastro/acoes.ts` |
 
-Essas contas são exclusivamente didáticas. Não use dados pessoais reais ou senhas reutilizadas no backend público do curso.
+- A autoria, a empresa de publicação e a identidade da candidata vêm da sessão. Na edição, a empresa vem da vaga original. Campos injetados não alteram id, data, dona ou situação da vaga.
+- Vaga sem autora não pode ser alterada pelo site. Candidatura sem pessoa vinculada não pode ser apagada por outra conta.
+- O id oculto de arquivar/desarquivar escolhe o recurso; a ação relê a vaga e confere a autora. O `.bind` em editar/apagar/desistir não substitui essa autorização.
+- A confirmação de exclusão evita cliques acidentais. Cancelar não envia a ação. A ação continua conferindo a permissão mesmo quando alguém contorna a confirmação.
+- A exclusão da conta não recebe id do formulário nem do `.bind`: usa `quem.id` e encerra a sessão só depois do sucesso. Contas com vagas ativas ou arquivadas recebem 409 da API.
+- O proxy redireciona visitantes de `/painel`, `/vagas/nova`, `/vagas/[id]/editar` e `/empresas/[slug]/editar`. As ações continuam protegendo cada envio, inclusive quando a conta muda em outra aba.
+- O layout e os detalhes públicos não leem sessão. Ações pessoais ficam no painel; o mural permanece igual para todo mundo.
+
+## Contas didáticas
+
+| Conta | Papel | Empresa |
+| --- | --- | --- |
+| `ana@exemplo.com` | Empresa | Aurora Tech (`aurora-tech`) |
+| `bruno@exemplo.com` | Empresa | Nuvem Rosa (`nuvem-rosa`) |
+| `carla@exemplo.com` | Candidata | — |
+
+Senha de laboratório: `leque1234`. A API é um ambiente didático com endpoints diretos públicos. A autorização do site não altera essa característica do backend.

@@ -1,3 +1,5 @@
+> Referência histórica das aulas 01 a 08. A instalação e os caminhos abaixo descrevem aquela etapa, não a aplicação atual. O Prisma foi removido conforme a aula 11. Para executar, use o [README atual](../README.md).
+
 # Leque de Vagas
 
 Projeto de referência do curso **Introdução ao Next.js** (NickDev). Um mural de
